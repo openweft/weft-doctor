@@ -2,12 +2,11 @@
 
 AI-driven log triage for the openweft control plane. Subscribes to
 NATS, classifies error/warning bursts via a local Ollama LLM, and
-surfaces findings as structured NATS messages plus an auto-maintained
-Dependency-Dashboard-style issue per target GitHub repo.
+publishes structured diagnoses on a NATS subject for downstream
+consumers (weft-webui's Diagnoses panel, alerting bridges, future
+remediation gates).
 
-V0.1 is **passive** : it observes and explains. It never takes
-remediative actions. Active flows land in V0.5+ behind explicit
-cluster-config gates.
+V0.1 is **passive** : observe and explain. No remediation.
 
 ## Pipeline
 
@@ -27,10 +26,19 @@ dispatch loop          poll every dispatch_interval, batch ready signatures
 llm.OllamaClient       classify batch -> []Diagnosis (local Ollama, no cloud)
    │
    ▼
-output.Multi
-   ├─ NATSSink         publish to weft.diagnosis.<severity>.<hash>
-   └─ GitHubSink       maintain ONE Dashboard issue per target repo
+output.NATSSink        publish to weft.diagnosis.<severity>.<hash>
 ```
+
+## Why NATS-only (no PAT, no GitHub creds)
+
+Authentication boundaries stay with whoever the consumer is already
+authenticated against : weft-webui via dex, alerting via its own
+mTLS, future remediation gates via the cluster's existing trust
+chain. weft-doctor itself never holds credentials.
+
+The dashboard UX (Renovate-style aggregated view, dedup by pattern
+hash) belongs in weft-webui where the operator already lives — see
+the follow-up issue for the `Diagnoses` panel.
 
 ## Why Ollama (no cloud dep)
 
@@ -65,63 +73,55 @@ buffer {
 }
 
 dispatch_interval = "15s"
-
-# Per-repo Dashboard issues. Empty `subjects` means "all diagnoses".
-target "openweft/weft" {
-  subjects = ["weft.agent.>"]
-}
-
-target "openweft/weft-ha-postgresql" {
-  subjects = ["weft.ha.postgres.>"]
-}
 ```
 
-GitHub PAT is read from the environment, never from disk :
+Run :
 
 ```
-export WEFT_DOCTOR_GH_PAT=ghp_xxxxxxxxxxxxx
 weft-doctor run --config /etc/weft-doctor/config.hcl
 ```
 
-PAT scopes required : `repo` (private repos) or `public_repo` + `issues`
-on public repos.
+No environment secrets. No PAT. No KMS. The NATS connection itself
+inherits auth from the cluster's NATS config (TLS, NKEYS, JWT —
+whatever the operator already runs).
 
-## Dashboard issue format
+## Output schema
 
-```markdown
-# Cluster Diagnosis Dashboard
-
-Auto-maintained by weft-doctor. Last update: 2026-06-07T20:32Z. Tracking 7 active patterns.
-
-## 🔴 [critical] primary postgres lost on dc2
-
-**Root cause** : disk full on /var/lib/pgsql triggers fatal exit
-**Suggested action** : df -h on dc2-r1-h1, free space, then rcctl restart postgres
-**Likely location** : `internal/postgres/controller.go:142`
-
-**Pattern** : `abc123` · **Occurrences** : 17 · **First seen** : 2026-06-07T19:50Z · **Last seen** : 2026-06-07T20:32Z
-
-<details><summary>Example events</summary>
+Each Diagnosis is published as JSON on subject :
 
 ```
-[ERROR] FATAL: disk full (subject: weft.agent.dc2-r1-h1)
+weft.diagnosis.<severity>.<pattern_hash>
 ```
 
-</details>
+Where `<severity>` ∈ {critical, high, medium, low} so consumers can
+filter via wildcards :
 
-## 🟡 [medium] driver plugin handshake timeouts
+- `weft.diagnosis.critical.>` — only paging-worthy
+- `weft.diagnosis.>` — everything
 
-...
+Schema (see `classify/types.go` for the Go contract) :
+
+```json
+{
+  "pattern_hash": "abc123",
+  "severity": "critical",
+  "title": "primary postgres lost on dc2",
+  "root_cause": "disk full on /var/lib/pgsql triggers fatal exit",
+  "suggested_action": "df -h on dc2-r1-h1, free space, then rcctl restart postgres",
+  "file_location": "internal/postgres/controller.go:142",
+  "occurrences": 17,
+  "first_seen": "2026-06-07T19:50Z",
+  "last_seen": "2026-06-07T20:32Z",
+  "examples": [...]
+}
 ```
-
-Sorted by severity desc, then occurrences desc. Capped to the
-configured `max_recent` (default 20).
 
 ## What's NOT in V0.1
 
 - Active remediation (restart VM, rollback, scale)
 - LLM providers other than Ollama (Anthropic / OpenAI / vLLM)
 - Datasources other than NATS (file tail, gRPC stream, journald)
+- Aggregated dashboard UI (belongs in weft-webui — separate follow-up)
 - Code-fix PR suggestions
 
 These are additive — file an issue when needed.

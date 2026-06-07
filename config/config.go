@@ -24,10 +24,6 @@ type Config struct {
 	// Dispatch cadence : how often the dispatcher polls ReadyBatch
 	// from the buffer.
 	DispatchInterval time.Duration
-	// Targets is the list of GitHub repos that receive a
-	// Dashboard issue (one repo per target). Optional ; without
-	// targets the binary only publishes to NATS.
-	Targets []Target
 }
 
 // NATSConfig : connection + subscription set.
@@ -49,16 +45,6 @@ type BufferConfig struct {
 	BurstThreshold int    `hcl:"burst_threshold,optional"` // 10
 }
 
-// Target is one GitHub repo that should receive a Dashboard issue.
-// Subjects filters which Diagnoses end up on this repo's issue based
-// on the source NATS subject they came from (allows fanning, e.g.
-// weft.agent.> on openweft/weft, weft.ha.postgres.> on
-// openweft/weft-ha-postgresql).
-type Target struct {
-	Repo     string   `hcl:"repo,label"` // "openweft/weft"
-	Subjects []string `hcl:"subjects,optional"`
-}
-
 // hclConfig mirrors Config with HCL struct tags. Public types stay
 // format-agnostic ; this private mirror does the decode dance.
 // Pointer types on optional blocks let HCL skip them entirely so a
@@ -68,7 +54,6 @@ type hclConfig struct {
 	Ollama           *OllamaConfig `hcl:"ollama,block"`
 	Buffer           *BufferConfig `hcl:"buffer,block"`
 	DispatchInterval string        `hcl:"dispatch_interval,optional"`
-	Targets          []Target      `hcl:"target,block"`
 }
 
 // Load reads + parses the file. Defaults are applied here so the
@@ -88,8 +73,7 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("decode: %s", diags.Error())
 	}
 	cfg := Config{
-		NATS:    raw.NATS,
-		Targets: raw.Targets,
+		NATS: raw.NATS,
 	}
 	if raw.Ollama != nil {
 		cfg.Ollama = *raw.Ollama

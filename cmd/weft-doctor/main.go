@@ -135,7 +135,11 @@ func run(ctx context.Context, cfg config.Config) error {
 		Logger:  log,
 	})
 
-	// 4. Output sinks : NATS + per-target GitHub.
+	// 4. Output : single NATSSink on weft.diagnosis.<sev>.<hash>.
+	// Downstream consumers (weft-webui's Diagnoses panel, alerting,
+	// future cluster-config remediation gates) subscribe ; the
+	// authentication boundary stays with whoever the consumer is
+	// already authenticated against (dex via webui, NATS auth elsewhere).
 	natsConn, err := nats.Connect(cfg.NATS.URL, nats.Name("weft-doctor-out"))
 	if err != nil {
 		return fmt.Errorf("output nats connect: %w", err)
@@ -143,30 +147,6 @@ func run(ctx context.Context, cfg config.Config) error {
 	defer natsConn.Drain() //nolint:errcheck
 
 	multi := &output.Multi{Sinks: []output.Sink{output.NewNATSSink(natsConn, "")}}
-
-	pat := os.Getenv("WEFT_DOCTOR_GH_PAT")
-	for _, t := range cfg.Targets {
-		if pat == "" {
-			log.Warn("WEFT_DOCTOR_GH_PAT unset ; skipping GitHub target", "repo", t.Repo)
-			continue
-		}
-		owner, repo, ok := splitRepo(t.Repo)
-		if !ok {
-			log.Warn("malformed target.repo, expecting owner/name", "got", t.Repo)
-			continue
-		}
-		ghSink, err := output.NewGitHubSink(output.GitHubOptions{
-			Token:  pat,
-			Owner:  owner,
-			Repo:   repo,
-			Logger: log,
-		})
-		if err != nil {
-			log.Warn("GitHub sink init failed", "repo", t.Repo, "err", err)
-			continue
-		}
-		multi.Sinks = append(multi.Sinks, ghSink)
-	}
 
 	// 5. Start ingest in the background, then enter the dispatch loop.
 	ingErr := make(chan error, 1)
@@ -242,20 +222,6 @@ func dispatchLoop(
 			}
 		}
 	}
-}
-
-// splitRepo parses "owner/name" into the two halves. Returns ok=false
-// for malformed input.
-func splitRepo(s string) (owner, name string, ok bool) {
-	for i := 0; i < len(s); i++ {
-		if s[i] == '/' {
-			if i == 0 || i == len(s)-1 {
-				return "", "", false
-			}
-			return s[:i], s[i+1:], true
-		}
-	}
-	return "", "", false
 }
 
 // Compile-time check that classify.LogEvent stays exported as

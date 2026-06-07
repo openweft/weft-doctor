@@ -26,14 +26,6 @@ buffer {
 }
 
 dispatch_interval = "15s"
-
-target "openweft/weft" {
-  subjects = ["weft.agent.>"]
-}
-
-target "openweft/weft-ha-postgresql" {
-  subjects = ["weft.ha.postgres.>"]
-}
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.hcl")
@@ -64,12 +56,6 @@ target "openweft/weft-ha-postgresql" {
 	}
 	if cfg.DispatchInterval != 15*time.Second {
 		t.Errorf("DispatchInterval = %v", cfg.DispatchInterval)
-	}
-	if len(cfg.Targets) != 2 {
-		t.Fatalf("Targets = %d", len(cfg.Targets))
-	}
-	if cfg.Targets[0].Repo != "openweft/weft" {
-		t.Errorf("Target[0].Repo = %q", cfg.Targets[0].Repo)
 	}
 }
 

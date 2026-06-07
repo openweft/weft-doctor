@@ -3,7 +3,6 @@ module github.com/openweft/weft-doctor
 go 1.26
 
 require (
-	github.com/google/go-github/v68 v68.0.0
 	github.com/hashicorp/hcl/v2 v2.23.0
 	github.com/nats-io/nats.go v1.43.0
 	github.com/spf13/cobra v1.10.2
@@ -14,7 +13,6 @@ require (
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7 // indirect
