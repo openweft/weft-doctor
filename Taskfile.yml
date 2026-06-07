@@ -1,0 +1,50 @@
+version: '3'
+
+# weft-doctor : AI-driven log triage for the openweft control plane.
+# Pure-Go, CGO=0. Build matrix : linux/{amd64,arm64} (runs as a microVM).
+
+vars:
+  BINARY: weft-doctor
+  PKG: github.com/openweft/weft-doctor
+  VERSION: '{{.VERSION | default "dev"}}'
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+  DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  LDFLAGS: >-
+    -X {{.PKG}}/cmd/{{.BINARY}}.version={{.VERSION}}
+    -X {{.PKG}}/cmd/{{.BINARY}}.commit={{.COMMIT}}
+    -X {{.PKG}}/cmd/{{.BINARY}}.date={{.DATE}}
+
+tasks:
+  default:
+    cmds: [task --list-all]
+
+  vet:
+    cmds: [go vet ./...]
+
+  test:
+    cmds: [go test -count=1 ./...]
+
+  cross-build:
+    desc: Cross-build for every supported (GOOS,GOARCH)
+    cmds:
+      - mkdir -p dist
+      - |
+        for goarch in amd64 arm64; do
+          out=dist/{{.BINARY}}-linux-$goarch
+          echo "build $out"
+          GOOS=linux GOARCH=$goarch CGO_ENABLED=0 \
+            go build -trimpath -ldflags "{{.LDFLAGS}}" \
+            -o "$out" ./cmd/{{.BINARY}}
+        done
+
+  ci:
+    desc: Full CI sequence (vet + test + cross-build)
+    cmds:
+      - task: vet
+      - task: test
+      - task: cross-build
+
+  clean:
+    cmds: [rm -rf dist]

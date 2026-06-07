@@ -1,0 +1,5 @@
+/dist/
+/weft-doctor
+/cmd/weft-doctor/weft-doctor
+*.test
+.DS_Store
