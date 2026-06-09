@@ -152,6 +152,28 @@ func run(ctx context.Context, cfg config.Config) error {
 	ingErr := make(chan error, 1)
 	go func() { ingErr <- ing.Run(ctx) }()
 
+	// V0.2 : optional systemd-journal tailer that captures the
+	// crash modes the NATS ingest can't see (Go panic, SIGKILL,
+	// OOM, segfault, fatal). Empty units list = disabled.
+	if len(cfg.Journal.Units) > 0 {
+		tailer, terr := ingest.NewJournalTailer(ingest.JournalOptions{
+			Units:  cfg.Journal.Units,
+			Host:   cfg.Journal.Host,
+			Sink:   buf,
+			Logger: log,
+		})
+		if terr != nil {
+			return fmt.Errorf("journal tailer: %w", terr)
+		}
+		go func() {
+			if err := tailer.Run(ctx); err != nil && ctx.Err() == nil {
+				log.Warn("journal tailer exited", "err", err)
+			}
+		}()
+		defer tailer.Close()
+		log.Info("weft-doctor : journal tailer active", "units", cfg.Journal.Units)
+	}
+
 	log.Info("weft-doctor running",
 		"nats", cfg.NATS.URL,
 		"subjects", cfg.NATS.Subjects,

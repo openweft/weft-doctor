@@ -24,12 +24,26 @@ type Config struct {
 	// Dispatch cadence : how often the dispatcher polls ReadyBatch
 	// from the buffer.
 	DispatchInterval time.Duration
+	// Journal : V0.2 systemd-journal tailer. Empty Units = disabled,
+	// the V0.1 NATS-only ingest path stays the only source.
+	Journal JournalConfig
 }
 
 // NATSConfig : connection + subscription set.
 type NATSConfig struct {
 	URL      string   `hcl:"url"`
 	Subjects []string `hcl:"subjects,optional"`
+}
+
+// JournalConfig : V0.2 systemd-journal tailer. Operators enable by
+// listing one or more systemd units in `units = […]`. The tailer
+// spawns `journalctl --output=json -f -u <unit>` per entry, filters
+// crash-relevant lines (Go panic, SIGKILL, OOM, segfault, fatal),
+// and feeds them into the same buffer the NATS ingest uses. Empty
+// units list = tailer disabled (V0.1 NATS-only behaviour preserved).
+type JournalConfig struct {
+	Units []string `hcl:"units,optional"` // ["weft-agent.service", ...]
+	Host  string   `hcl:"host,optional"`  // defaults to os.Hostname()
 }
 
 // OllamaConfig : endpoint + model.
@@ -50,10 +64,11 @@ type BufferConfig struct {
 // Pointer types on optional blocks let HCL skip them entirely so a
 // minimal config file with only `nats { … }` parses cleanly.
 type hclConfig struct {
-	NATS             NATSConfig    `hcl:"nats,block"`
-	Ollama           *OllamaConfig `hcl:"ollama,block"`
-	Buffer           *BufferConfig `hcl:"buffer,block"`
-	DispatchInterval string        `hcl:"dispatch_interval,optional"`
+	NATS             NATSConfig     `hcl:"nats,block"`
+	Ollama           *OllamaConfig  `hcl:"ollama,block"`
+	Buffer           *BufferConfig  `hcl:"buffer,block"`
+	Journal          *JournalConfig `hcl:"journal,block"`
+	DispatchInterval string         `hcl:"dispatch_interval,optional"`
 }
 
 // Load reads + parses the file. Defaults are applied here so the
@@ -80,6 +95,9 @@ func Load(path string) (Config, error) {
 	}
 	if raw.Buffer != nil {
 		cfg.Buffer = *raw.Buffer
+	}
+	if raw.Journal != nil {
+		cfg.Journal = *raw.Journal
 	}
 	if raw.DispatchInterval != "" {
 		d, err := time.ParseDuration(raw.DispatchInterval)
