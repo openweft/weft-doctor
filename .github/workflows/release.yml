@@ -15,8 +15,8 @@ jobs:
       matrix:
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -33,7 +33,7 @@ jobs:
             -X github.com/openweft/weft-doctor/cmd/weft-doctor.commit=${GITHUB_SHA::7} \
             -X github.com/openweft/weft-doctor/cmd/weft-doctor.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -o "$out" ./cmd/weft-doctor
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: weft-doctor-linux-${{ matrix.goarch }}
           path: weft-doctor-linux-${{ matrix.goarch }}
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: weft-doctor-*
