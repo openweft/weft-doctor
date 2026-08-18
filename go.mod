@@ -1,6 +1,6 @@
 module github.com/openweft/weft-doctor
 
-go 1.26
+go 1.26.4
 
 require (
 	github.com/hashicorp/hcl/v2 v2.23.0
