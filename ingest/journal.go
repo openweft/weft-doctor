@@ -170,18 +170,18 @@ func (t *JournalTailer) runJournalctl(ctx context.Context, unit string) error {
 // The actual schema has dozens of fields ; only these matter for
 // crash classification.
 type journalRecord struct {
-	Realtime          string `json:"__REALTIME_TIMESTAMP"` // microseconds since epoch
-	Message           string `json:"MESSAGE"`
-	Priority          string `json:"PRIORITY"`
-	Unit              string `json:"_SYSTEMD_UNIT"`
-	Pid               string `json:"_PID"`
-	BootID            string `json:"_BOOT_ID"`
-	Comm              string `json:"_COMM"`
-	ExitStatus        string `json:"EXIT_STATUS"` // present on systemd Type=notify exit lines
-	JobResult         string `json:"JOB_RESULT"`
-	UnitResult        string `json:"UNIT_RESULT"`
-	NewMain           string `json:"NEW_MAIN_PID"`
-	OOMScore          string `json:"COREDUMP_TIMESTAMP"`
+	Realtime   string `json:"__REALTIME_TIMESTAMP"` // microseconds since epoch
+	Message    string `json:"MESSAGE"`
+	Priority   string `json:"PRIORITY"`
+	Unit       string `json:"_SYSTEMD_UNIT"`
+	Pid        string `json:"_PID"`
+	BootID     string `json:"_BOOT_ID"`
+	Comm       string `json:"_COMM"`
+	ExitStatus string `json:"EXIT_STATUS"` // present on systemd Type=notify exit lines
+	JobResult  string `json:"JOB_RESULT"`
+	UnitResult string `json:"UNIT_RESULT"`
+	NewMain    string `json:"NEW_MAIN_PID"`
+	OOMScore   string `json:"COREDUMP_TIMESTAMP"`
 }
 
 // crashPatterns identify lines worth forwarding to the LLM. Tested
